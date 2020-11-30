@@ -10,7 +10,8 @@
 	},
 	"dependencies": {
 		"react": "^17.0.1",
-		"react-dom": "^17.0.1"
+		"react-dom": "^17.0.1",
+		"yarn": "^1.22.10"
 	},
 	"devDependencies": {
 		"@figma/plugin-typings": "^1.19.0",
