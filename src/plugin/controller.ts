@@ -13,7 +13,6 @@ const messageHandlers: ((msg: any) => void)[] = [
 
 figma.ui.onmessage = msg => {
   messageHandlers.map(messageHandler => messageHandler(msg));
-  figma.closePlugin();
 };
 
 function rectangleMessageHandler(msg) {

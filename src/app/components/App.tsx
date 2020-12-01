@@ -74,6 +74,8 @@ const App = ({}) => {
         console.log(`Figma Says: ${message}`);
       }
     };
+
+    parent.postMessage({ pluginMessage: { type: 'create-components' } }, '*');
   }, []);
 
   return (
