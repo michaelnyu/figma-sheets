@@ -62,6 +62,10 @@ const App = ({}) => {
     parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
   }, []);
 
+  const onReplaceValues = () => {
+    parent.postMessage({ pluginMessage: { type: 'replace-values' } }, '*');
+  };
+
   React.useEffect(() => {
     // This is how we read messages sent from the plugin controller
     window.onmessage = event => {
@@ -86,6 +90,7 @@ const App = ({}) => {
         Create
       </button>
       <button onClick={onCancel}>Cancel</button>
+      <button onClick={onReplaceValues} />
     </div>
   );
 };

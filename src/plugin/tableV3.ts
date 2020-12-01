@@ -505,6 +505,9 @@ function findComponentById(id) {
   }
 }
 
+const TABLE = {};
+let tableNode = null;
+
 function createNewTable(
   numberColumns,
   numberRows,
@@ -665,8 +668,10 @@ function createNewTable(
         duplicatedRow = rowHeader.createInstance();
         duplicatedRow.layoutAlign = 'STRETCH';
         duplicatedRow.primaryAxisSizingMode = 'FIXED';
-        // duplicatedRow.setPluginData("isRowInstance", "true")
 
+        // duplicatedRow.setPluginData("isRowInstance", "true")
+        const letter = String.fromCharCode('A'.charCodeAt(0) + i);
+        TABLE[letter] = {};
         for (let b = 0; b < duplicatedRow.children.length; b++) {
           // Save original layout align of component before it gets swapped
           var sizing = console.log(sizing);
@@ -686,6 +691,8 @@ function createNewTable(
               b
             ].children[0].primaryAxisAlignItems = cellAlignment;
           }
+
+          TABLE[letter][b] = duplicatedRow.children[b].children[1].children[0];
           // }
         }
 
@@ -1093,6 +1100,42 @@ function positionInCenter(node) {
   node.y = figma.viewport.center.y - node.height / 2;
 }
 
+let nodesToUpdate = [];
+function traverse(node) {
+  if ('children' in node) {
+    if (node.type !== 'INSTANCE') {
+      for (const child of node.children) {
+        if (
+          child.type === 'TEXT' &&
+          node.name.match(/{{{.*}}}/g) &&
+          node.type === 'FRAME'
+        ) {
+          nodesToUpdate.push(node);
+        }
+        traverse(child);
+      }
+    }
+  }
+}
+// traverse(figma.root) // start the traversal at the root
+
+function computeTableValues() {
+  if ('children' in node) {
+    if (node.type !== 'INSTANCE') {
+      for (const child of node.children) {
+        if (
+          child.type === 'TEXT' &&
+          node.name.match(/{{{.*}}}/g) &&
+          node.type === 'FRAME'
+        ) {
+          nodesToUpdate.push(node);
+        }
+        traverse(child);
+      }
+    }
+  }
+}
+
 var message = {
   componentsExist: false,
   cellExists: false,
@@ -1147,13 +1190,12 @@ function checkVersion() {
     compareVersion(figma.root.getPluginData('pluginVersion'), pkg.version) < 0
   ) {
     figma.root.setPluginData('pluginVersion', pkg.version);
-    console.log(figma.root.getPluginData('pluginVersion'));
 
     throw 'New Version';
   }
 }
 
-function tableMessageHandlerV3(msg) {
+async function tableMessageHandlerV3(msg) {
   {
     if (msg.type === 'update-tables') {
       updateTables();
@@ -1174,7 +1216,35 @@ function tableMessageHandlerV3(msg) {
       figma.notify('Default table components created');
     }
 
+    if (msg.type === 'replace-values') {
+      // MOVE OUT
+      console.log('yo');
+      nodesToUpdate = [];
+      traverse(figma.root);
+
+      await figma.loadFontAsync({ family: 'Roboto', style: 'Regular' });
+      console.log(nodesToUpdate);
+      nodesToUpdate.forEach(node => {
+        let tableIndexers = node.name.match(/{{{.*}}}/g)[0];
+        tableIndexers = tableIndexers.replace('{{{', '').replace('}}}', '');
+        const rowIndex = tableIndexers[0];
+        const colIndex = tableIndexers[1];
+        console.log(TABLE[rowIndex][parseInt(colIndex)]);
+        const newText = node.name.replace(
+          /{{{.*}}}/g,
+          TABLE[rowIndex][colIndex].characters,
+        );
+        node.children.forEach(child => {
+          if (child.type === 'TEXT') {
+            child.characters = newText;
+          }
+        });
+      });
+      nodesToUpdate = [];
+    }
+
     if (msg.type === 'create-table') {
+      //
       if (findComponentById(figma.root.getPluginData('cellComponentID'))) {
         message.componentsExist = true;
 
@@ -1317,7 +1387,6 @@ block_1: {
       // expected output: "Parameter is not a number!"
     }
 
-    console.log(findComponentById(figma.root.getPluginData('cellComponentID')));
     // figma.root.setRelaunchData({ createTable: 'Create a new table' })
     if (findComponentById(figma.root.getPluginData('cellComponentID'))) {
       message.componentsExist = true;
