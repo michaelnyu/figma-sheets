@@ -21,17 +21,20 @@ const App = ({}) => {
     const rowsCnt = parseInt(rowsBox.current.value, 10);
     const colsCnt = parseInt(colsBox.current.value, 10);
 
-    parent.postMessage({pluginMessage: {type: 'create-grid', rowsCnt, colsCnt}}, '*');
+    parent.postMessage(
+      { pluginMessage: { type: 'create-grid', rowsCnt, colsCnt } },
+      '*',
+    );
   }, []);
 
   const onCancel = React.useCallback(() => {
-    parent.postMessage({pluginMessage: {type: 'cancel'}}, '*');
+    parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
   }, []);
 
   React.useEffect(() => {
     // This is how we read messages sent from the plugin controller
-    window.onmessage = (event) => {
-      const {type, message} = event.data.pluginMessage;
+    window.onmessage = event => {
+      const { type, message } = event.data.pluginMessage;
       if (type === 'create-rectangles') {
         console.log(`Figma Says: ${message}`);
       }

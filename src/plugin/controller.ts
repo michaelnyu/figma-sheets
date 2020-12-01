@@ -1,11 +1,14 @@
-import {tableMessageHandler} from './table';
+import { tableMessageHandler } from './table';
 
 figma.showUI(__html__);
 
-const messageHandlers: ((msg: any) => void)[] = [tableMessageHandler, rectangleMessageHandler];
+const messageHandlers: ((msg: any) => void)[] = [
+  tableMessageHandler,
+  rectangleMessageHandler,
+];
 
-figma.ui.onmessage = (msg) => {
-  messageHandlers.map((messageHandler) => messageHandler(msg));
+figma.ui.onmessage = msg => {
+  messageHandlers.map(messageHandler => messageHandler(msg));
   figma.closePlugin();
 };
 
@@ -16,7 +19,7 @@ function rectangleMessageHandler(msg) {
     for (let i = 0; i < msg.count; i++) {
       const rect = figma.createRectangle();
       rect.x = i * 150;
-      rect.fills = [{type: 'SOLID', color: {r: 1, g: 0.5, b: 0}}];
+      rect.fills = [{ type: 'SOLID', color: { r: 1, g: 0.5, b: 0 } }];
       figma.currentPage.appendChild(rect);
       nodes.push(rect);
     }
