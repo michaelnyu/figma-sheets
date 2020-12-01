@@ -670,8 +670,8 @@ function createNewTable(
         duplicatedRow.primaryAxisSizingMode = 'FIXED';
 
         // duplicatedRow.setPluginData("isRowInstance", "true")
-        const letter = String.fromCharCode('A'.charCodeAt(0) + i);
-        TABLE[letter] = {};
+        // Add 1 to account for header row
+        TABLE[i + 1] = {};
         for (let b = 0; b < duplicatedRow.children.length; b++) {
           // Save original layout align of component before it gets swapped
           var sizing = console.log(sizing);
@@ -691,8 +691,9 @@ function createNewTable(
               b
             ].children[0].primaryAxisAlignItems = cellAlignment;
           }
-
-          TABLE[letter][b] = duplicatedRow.children[b].children[1].children[0];
+          const letter = String.fromCharCode('A'.charCodeAt(0) + b);
+          TABLE[i + 1][letter] =
+            duplicatedRow.children[b].children[1].children[0];
           // }
         }
 
@@ -1150,12 +1151,12 @@ function computeTableValues() {
   if (table.type !== 'INSTANCE') {
     for (let x = 0; x < table.children.length; x++) {
       var row = table.children[x];
-      const letter = String.fromCharCode('A'.charCodeAt(0) + x);
-      TABLE[letter] = {};
+      TABLE[x] = {};
       if (row.children && row.getPluginData('isRow') === 'true') {
         for (let k = 0; k < row.children.length; k++) {
           var cell = row.children[k];
-          TABLE[letter][k] = getNestedNode(cell, 'TEXT').characters;
+          const letter = String.fromCharCode('A'.charCodeAt(0) + k);
+          TABLE[x][letter] = getNestedNode(cell, 'TEXT').characters;
         }
       }
     }
@@ -1256,14 +1257,12 @@ async function tableMessageHandlerV3(msg) {
       nodesToUpdate.forEach(node => {
         let tableIndexers = node.name.match(/{{{.*}}}/g)[0];
         tableIndexers = tableIndexers.replace('{{{', '').replace('}}}', '');
-        const rowIndex = tableIndexers[0];
-        const colIndex = tableIndexers[1];
-        console.log('stored value', TABLE[rowIndex][parseInt(colIndex)]);
+        const colIndex = tableIndexers[0];
+        const rowIndex = tableIndexers[1];
         const newText = node.name.replace(
           /{{{.*}}}/g,
-          TABLE[rowIndex][parseInt(colIndex)],
+          TABLE[parseInt(rowIndex)][colIndex],
         );
-        console.log(newText);
         node.children.forEach(child => {
           if (child.type === 'TEXT') {
             child.characters = newText;
