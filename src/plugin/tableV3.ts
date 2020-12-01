@@ -421,6 +421,7 @@ function findComponentById(id) {
 }
 
 const TABLE = {};
+const HEADER_NAMES = {};
 
 function createNewTable(
   numberColumns,
@@ -717,11 +718,14 @@ function computeTableValues() {
         for (let k = 0; k < row.children.length; k++) {
           var cell = row.children[k];
           const letter = String.fromCharCode('A'.charCodeAt(0) + k);
-          TABLE[x][letter] = getNestedNode(cell, 'TEXT').characters;
+          const text = getNestedNode(cell, 'TEXT').characters;
+          TABLE[x][letter] = text;
+          if (cell.getPluginData('isCellHeader') === 'true') {
+            HEADER_NAMES[text] = letter;
+          }
         }
       }
     }
-    // }
   }
 }
 
@@ -805,12 +809,16 @@ async function tableMessageHandlerV3(msg) {
       nodesToUpdate.forEach(node => {
         let tableIndexers = node.name.match(/{{{.*}}}/g)[0];
         tableIndexers = tableIndexers.replace('{{{', '').replace('}}}', '');
-        const colIndex = tableIndexers[0];
-        const rowIndex = tableIndexers[1];
-        const newText = node.name.replace(
-          /{{{.*}}}/g,
-          TABLE[parseInt(rowIndex)][colIndex],
-        );
+        const [colIndex, rowIndex] = tableIndexers.split(':');
+
+        let tableValue = '';
+        if (colIndex in HEADER_NAMES) {
+          tableValue = TABLE[parseInt(rowIndex)][HEADER_NAMES[colIndex]];
+        } else {
+          tableValue = TABLE[parseInt(rowIndex)][colIndex];
+        }
+
+        const newText = node.name.replace(/{{{.*}}}/g, tableValue);
         node.children.forEach(child => {
           if (child.type === 'TEXT') {
             child.characters = newText;

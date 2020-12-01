@@ -92,7 +92,7 @@ const App = ({}) => {
         Create
       </button>
       <button onClick={onCancel}>Cancel</button>
-      <button onClick={onReplaceValues} />
+      <button onClick={onReplaceValues}>Rerender</button>
     </div>
   );
 };
