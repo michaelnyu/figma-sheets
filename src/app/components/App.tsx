@@ -27,6 +27,37 @@ const App = ({}) => {
     );
   }, []);
 
+  const onCreateV2 = React.useCallback(() => {
+    const numRows = parseInt(rowsBox.current.value, 10);
+    const numCols = parseInt(colsBox.current.value, 10);
+
+    parent.postMessage(
+      { pluginMessage: { type: 'create-table', numRows, numCols } },
+      '*',
+    );
+  }, []);
+
+  const onCreateV3 = React.useCallback(() => {
+    const rowCount = parseInt(rowsBox.current.value, 10);
+    const columnCount = parseInt(colsBox.current.value, 10);
+
+    parent.postMessage(
+      {
+        pluginMessage: {
+          type: 'create-table',
+          rowCount,
+          columnCount,
+          cellAlignment: 'CENTER',
+          includeHeader: true,
+          columnResizing: true,
+          cellWidth: 100,
+          remember: true,
+        },
+      },
+      '*',
+    );
+  }, []);
+
   const onCancel = React.useCallback(() => {
     parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
   }, []);
@@ -51,7 +82,7 @@ const App = ({}) => {
       <p>
         Columns: <input ref={colsRef} />
       </p>
-      <button id="create" onClick={onCreate}>
+      <button id="create" onClick={onCreateV3}>
         Create
       </button>
       <button onClick={onCancel}>Cancel</button>

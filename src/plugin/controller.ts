@@ -1,10 +1,14 @@
 import { tableMessageHandler } from './table';
+import { tableMessageHandlerV2 } from './tableV2';
+import { tableMessageHandlerV3 } from './tableV3';
 
 figma.showUI(__html__);
 
 const messageHandlers: ((msg: any) => void)[] = [
-  tableMessageHandler,
+  // tableMessageHandler,
   rectangleMessageHandler,
+  // tableMessageHandlerV2,
+  tableMessageHandlerV3,
 ];
 
 figma.ui.onmessage = msg => {
