@@ -738,6 +738,8 @@ function createNewTable(
   // TODO: Needs to be added to components linked by user also
   table.setPluginData('isTable', 'true');
 
+  figma.root.setPluginData('tableId', table.id);
+
   return table;
 }
 
@@ -1119,20 +1121,45 @@ function traverse(node) {
 }
 // traverse(figma.root) // start the traversal at the root
 
+function getNestedNode(root, type) {
+  if (root.type === type) return root;
+  if ('children' in root) {
+    for (const child of root.children) {
+      const nestedNode = getNestedNode(child, type);
+      if (nestedNode) return nestedNode;
+    }
+  }
+  return;
+}
+
 function computeTableValues() {
-  if ('children' in node) {
-    if (node.type !== 'INSTANCE') {
-      for (const child of node.children) {
-        if (
-          child.type === 'TEXT' &&
-          node.name.match(/{{{.*}}}/g) &&
-          node.type === 'FRAME'
-        ) {
-          nodesToUpdate.push(node);
+  var pages = figma.root.children;
+  var tables;
+
+  // TODO, rigth now we only look through first page
+  tables = pages[0].findAll(node => node.getPluginData('isTable') === 'true');
+
+  // for (let b = 0; b < tables.length; b++) {
+  //   var table = tables[b];
+
+  // TODO
+  // right now, we just get the first table
+  let table = tables[0];
+
+  // Don't apply if an instance
+  if (table.type !== 'INSTANCE') {
+    for (let x = 0; x < table.children.length; x++) {
+      var row = table.children[x];
+      const letter = String.fromCharCode('A'.charCodeAt(0) + x);
+      TABLE[letter] = {};
+      if (row.children && row.getPluginData('isRow') === 'true') {
+        for (let k = 0; k < row.children.length; k++) {
+          var cell = row.children[k];
+          TABLE[letter][k] = getNestedNode(cell, 'TEXT').characters;
         }
-        traverse(child);
       }
     }
+    // }
   }
 }
 
@@ -1217,6 +1244,7 @@ async function tableMessageHandlerV3(msg) {
     }
 
     if (msg.type === 'replace-values') {
+      computeTableValues();
       // MOVE OUT
       console.log('yo');
       nodesToUpdate = [];
@@ -1224,16 +1252,18 @@ async function tableMessageHandlerV3(msg) {
 
       await figma.loadFontAsync({ family: 'Roboto', style: 'Regular' });
       console.log(nodesToUpdate);
+      console.log(TABLE);
       nodesToUpdate.forEach(node => {
         let tableIndexers = node.name.match(/{{{.*}}}/g)[0];
         tableIndexers = tableIndexers.replace('{{{', '').replace('}}}', '');
         const rowIndex = tableIndexers[0];
         const colIndex = tableIndexers[1];
-        console.log(TABLE[rowIndex][parseInt(colIndex)]);
+        console.log('stored value', TABLE[rowIndex][parseInt(colIndex)]);
         const newText = node.name.replace(
           /{{{.*}}}/g,
-          TABLE[rowIndex][colIndex].characters,
+          TABLE[rowIndex][parseInt(colIndex)],
         );
+        console.log(newText);
         node.children.forEach(child => {
           if (child.type === 'TEXT') {
             child.characters = newText;
