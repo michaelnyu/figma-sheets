@@ -66,10 +66,6 @@ const App = ({}) => {
     parent.postMessage({ pluginMessage: { type: 'replace-values' } }, '*');
   }, []);
 
-  const addRow = React.useCallback(() => {
-    parent.postMessage({ pluginMessage: { type: 'add-row' } }, '*');
-  }, []);
-
   const addCol = React.useCallback(() => {
     parent.postMessage({ pluginMessage: { type: 'add-col' } }, '*');
   }, []);
@@ -105,7 +101,6 @@ const App = ({}) => {
       </button>
       <button onClick={onCancel}>Cancel</button>
       <button onClick={onReplaceValues}>Rerender</button>
-      <button onClick={addRow}>Add row</button>
       <button onClick={addCol}>Add column</button>
       <button onClick={deleteCol}>Delete column</button>
     </div>

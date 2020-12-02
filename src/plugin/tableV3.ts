@@ -519,6 +519,7 @@ function createNewTable(
   }
 
   var rowHeader;
+  console.log(TABLE);
 
   if (includeHeader) {
     rowHeader = firstRow.clone();
@@ -543,6 +544,13 @@ function createNewTable(
       }
 
       rowHeader.appendChild(duplicatedCellHeader);
+      const colIdx = String.fromCharCode('A'.charCodeAt(0) + i);
+      if (TABLE[0] && TABLE[0][colIdx] && TABLE[0][colIdx].length > 0) {
+        const text = getNestedNode(duplicatedCellHeader, 'TEXT');
+        console.log(TABLE[0][colIdx], text.characters);
+        // text.characters = TABLE[0][colIdx]
+        HEADER_NAMES[TABLE[0][colIdx]] = colIdx;
+      }
     }
 
     table.appendChild(rowHeader);
@@ -586,7 +594,9 @@ function createNewTable(
 
         // duplicatedRow.setPluginData("isRowInstance", "true")
         // Add 1 to account for header row
-        TABLE[i + 1] = {};
+        if (!TABLE[i + 1]) {
+          TABLE[i + 1] = {};
+        }
         for (let b = 0; b < duplicatedRow.children.length; b++) {
           // Save original layout align of component before it gets swapped
           var sizing = console.log(sizing);
@@ -607,9 +617,16 @@ function createNewTable(
             ].children[0].primaryAxisAlignItems = cellAlignment;
           }
           const letter = String.fromCharCode('A'.charCodeAt(0) + b);
-          TABLE[i + 1][letter] =
-            duplicatedRow.children[b].children[1].children[0];
-          // }
+          if (
+            TABLE[i + 1] &&
+            TABLE[i + 1][letter] &&
+            TABLE[i + 1][letter].length > 0
+          ) {
+            console.log(i + 1, letter, TABLE[i + 1][letter]);
+          } else {
+            TABLE[i + 1][letter] =
+              duplicatedRow.children[b].children[1].children[0];
+          }
         }
 
         firstRow.remove();
@@ -725,6 +742,30 @@ function computeTableValues() {
   }
 }
 
+function redrawTable() {
+  // TODO, rigth now we only look through first page
+  computeTableValues();
+
+  var pages = figma.root.children;
+  const tables = pages[0].findAll(
+    node => node.getPluginData('isTable') === 'true',
+  );
+  let table = tables[0];
+  table.remove();
+  const newColCount = parseInt(figma.root.getPluginData('columnCount'), 10) + 1;
+  table = createNewTable(
+    newColCount,
+    message.rowCount,
+    message.cellWidth,
+    message.includeHeader,
+    message.columnResizing,
+    message.cellAlignment,
+  );
+  figma.root.setPluginData('columnCount', newColCount.toString());
+
+  computeTableValues();
+}
+
 function addNewNodeToSelection(page, node) {
   page.selection = node;
 }
@@ -799,7 +840,6 @@ function updateDynamicNodes(nodes) {
         let colIndex = child.name.match(/{{{[A-Z]}}}/g);
         if (!colIndex) return;
         colIndex = colIndex[0].replace('{{{', '').replace('}}}', '');
-        console.log(TABLE[rowIndex][colIndex]);
         console.log({ colIndex, rowIndex });
         let tableValue = '';
         if (colIndex in HEADER_NAMES) {
@@ -898,7 +938,7 @@ async function tableMessageHandlerV3(msg) {
 
       // This updates all single cell references
       nodesToUpdate.forEach(node => {
-        let tableIndexers = node.name.match(/{{{[A-Z]+:[0-9]+}}}/g);
+        let tableIndexers = node.name.match(/{{{(.*?):[0-9]+}}}/g);
         if (!tableIndexers || tableIndexers.length !== 1) {
           return;
         }
@@ -1014,6 +1054,13 @@ async function tableMessageHandlerV3(msg) {
       selectParallelCells();
       deleteSelection();
       computeTableValues();
+      const newColCount =
+        parseInt(figma.root.getPluginData('columnCount'), 10) - 1;
+      figma.root.setPluginData('columnCount', newColCount.toString());
+    }
+    if (msg.type === 'add-col') {
+      await figma.loadFontAsync({ family: 'Roboto', style: 'Regular' });
+      redrawTable();
     }
   }
 }
