@@ -766,7 +766,7 @@ function deleteSelection() {
 
 function updateDynamicNodes(nodes) {
   nodes.forEach(node => {
-    let tableIndexers = node.name.match(/{{{[0-9]+:[0-9]+}}}/g);
+    let tableIndexers = node.name.match(/{{{[0-9]+-[0-9]+}}}/g);
     if (!tableIndexers || tableIndexers.length !== 1) return;
     tableIndexers = tableIndexers[0].replace('{{{', '').replace('}}}', '');
     const [startRow, endRow] = tableIndexers.split('-');
@@ -898,7 +898,7 @@ async function tableMessageHandlerV3(msg) {
 
       // This updates all single cell references
       nodesToUpdate.forEach(node => {
-        let tableIndexers = node.name.match(/{{{[A-Z]*:[0-9]*}}}/g);
+        let tableIndexers = node.name.match(/{{{[A-Z]+:[0-9]+}}}/g);
         if (!tableIndexers || tableIndexers.length !== 1) {
           return;
         }
@@ -916,11 +916,6 @@ async function tableMessageHandlerV3(msg) {
         if (node.type === 'TEXT') {
           node.characters = newText;
         }
-        // node.children.forEach(child => {
-        //   if (child.type === 'TEXT') {
-        //     child.characters = newText;
-        //   }
-        // });
       });
 
       updateDynamicNodes(nodesToUpdate);
