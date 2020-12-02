@@ -729,6 +729,45 @@ function computeTableValues() {
   }
 }
 
+function addNewNodeToSelection(page, node) {
+  page.selection = node;
+}
+
+function selectParallelCells() {
+  var _a;
+  // Needs a way to exclude things which aren't rows/columns, or a way to include only rows/columns
+  var regex = RegExp(/\[ignore\]/, 'g');
+  var selection = figma.currentPage.selection;
+  var newSelection = [];
+  for (let i = 0; i < selection.length; i++) {
+    var parent =
+      (_a = selection[i].parent) === null || _a === void 0 ? void 0 : _a.parent;
+    var children =
+      parent === null || parent === void 0 ? void 0 : parent.children;
+    var rowIndex = children.findIndex(x => x.id === selection[i].parent.id);
+    var columnIndex = children[rowIndex].children.findIndex(
+      x => x.id === selection[i].id,
+    );
+    for (let i = 0; i < children.length; i++) {
+      if (children[i].children) {
+        if (
+          children[i].children[columnIndex] &&
+          !regex.test(children[i].children[columnIndex].parent.name)
+        ) {
+          newSelection.push(clone(children[i].children[columnIndex]));
+        }
+      }
+    }
+  }
+  addNewNodeToSelection(figma.currentPage, newSelection);
+}
+
+function deleteSelection() {
+  for (const node of figma.currentPage.selection) {
+    node.remove();
+  }
+}
+
 var message = {
   componentsExist: false,
   cellExists: false,
@@ -914,6 +953,11 @@ async function tableMessageHandlerV3(msg) {
         message.componentsExist = false;
         figma.notify('Cannot find Cell component');
       }
+    }
+    if (msg.type === 'delete-col') {
+      selectParallelCells();
+      deleteSelection();
+      computeTableValues();
     }
   }
 }
