@@ -667,7 +667,7 @@ function positionInCenter(node) {
 
 let nodesToUpdate = [];
 function traverse(node) {
-  if (node.name.match(/{{{.*}}}/g) && node.type === 'FRAME') {
+  if (node.name.match(/{{{(.*?)}}}/g)) {
     nodesToUpdate.push(node);
   }
   if ('children' in node) {
@@ -766,7 +766,7 @@ function deleteSelection() {
 
 function updateDynamicNodes(nodes) {
   nodes.forEach(node => {
-    let tableIndexers = node.name.match(/{{{[0-9]+-[0-9]+}}}/g);
+    let tableIndexers = node.name.match(/{{{[0-9]+:[0-9]+}}}/g);
     if (!tableIndexers || tableIndexers.length !== 1) return;
     tableIndexers = tableIndexers[0].replace('{{{', '').replace('}}}', '');
     const [startRow, endRow] = tableIndexers.split('-');
@@ -808,11 +808,9 @@ function updateDynamicNodes(nodes) {
           tableValue = TABLE[rowIndex][colIndex];
         }
         const newText = node.name.replace(/{{{.*}}}/g, tableValue);
-        child.children.forEach(child => {
-          if (child.type === 'TEXT') {
-            child.characters = newText;
-          }
-        });
+        if (child.type === 'TEXT') {
+          child.characters = newText;
+        }
       }
     }
   });
@@ -900,7 +898,7 @@ async function tableMessageHandlerV3(msg) {
 
       // This updates all single cell references
       nodesToUpdate.forEach(node => {
-        let tableIndexers = node.name.match(/{{{[A-Z]:[.*]}}}/g);
+        let tableIndexers = node.name.match(/{{{[A-Z]*:[0-9]*}}}/g);
         if (!tableIndexers || tableIndexers.length !== 1) {
           return;
         }
@@ -915,11 +913,14 @@ async function tableMessageHandlerV3(msg) {
         }
 
         const newText = node.name.replace(/{{{.*}}}/g, tableValue);
-        node.children.forEach(child => {
-          if (child.type === 'TEXT') {
-            child.characters = newText;
-          }
-        });
+        if (node.type === 'TEXT') {
+          node.characters = newText;
+        }
+        // node.children.forEach(child => {
+        //   if (child.type === 'TEXT') {
+        //     child.characters = newText;
+        //   }
+        // });
       });
 
       updateDynamicNodes(nodesToUpdate);
