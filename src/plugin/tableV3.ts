@@ -667,16 +667,12 @@ function positionInCenter(node) {
 
 let nodesToUpdate = [];
 function traverse(node) {
+  if (node.name.match(/{{{.*}}}/g) && node.type === 'FRAME') {
+    nodesToUpdate.push(node);
+  }
   if ('children' in node) {
     if (node.type !== 'INSTANCE') {
       for (const child of node.children) {
-        if (
-          child.type === 'TEXT' &&
-          node.name.match(/{{{.*}}}/g) &&
-          node.type === 'FRAME'
-        ) {
-          nodesToUpdate.push(node);
-        }
         traverse(child);
       }
     }
@@ -768,6 +764,60 @@ function deleteSelection() {
   }
 }
 
+function updateDynamicNodes(nodes) {
+  nodes.forEach(node => {
+    let tableIndexers = node.name.match(/{{{[0-9]+-[0-9]+}}}/g);
+    if (!tableIndexers || tableIndexers.length !== 1) return;
+    tableIndexers = tableIndexers[0].replace('{{{', '').replace('}}}', '');
+    const [startRow, endRow] = tableIndexers.split('-');
+
+    // fetch the component we want to duplicate
+    const childComponent = node.children.find(
+      child => child.type === 'COMPONENT',
+    );
+
+    // clear out all stale component instances
+    node.children.forEach(child => {
+      if (child.type === 'INSTANCE' && child.mainComponent == childComponent)
+        child.remove();
+    });
+
+    // duplicate the component and fill in data from the table
+    for (
+      let rowIndex = parseInt(startRow);
+      rowIndex < parseInt(endRow) + 1;
+      ++rowIndex
+    ) {
+      let nextChildInstance;
+      if (rowIndex === parseInt(startRow)) nextChildInstance = childComponent;
+      else {
+        nextChildInstance = childComponent.createInstance();
+        node.appendChild(nextChildInstance);
+      }
+
+      for (const child of nextChildInstance.children) {
+        let colIndex = child.name.match(/{{{[A-Z]}}}/g);
+        if (!colIndex) return;
+        colIndex = colIndex[0].replace('{{{', '').replace('}}}', '');
+        console.log(TABLE[rowIndex][colIndex]);
+        console.log({ colIndex, rowIndex });
+        let tableValue = '';
+        if (colIndex in HEADER_NAMES) {
+          tableValue = TABLE[rowIndex][HEADER_NAMES[colIndex]];
+        } else {
+          tableValue = TABLE[rowIndex][colIndex];
+        }
+        const newText = node.name.replace(/{{{.*}}}/g, tableValue);
+        child.children.forEach(child => {
+          if (child.type === 'TEXT') {
+            child.characters = newText;
+          }
+        });
+      }
+    }
+  });
+}
+
 var message = {
   componentsExist: false,
   cellExists: false,
@@ -820,7 +870,11 @@ if (figma.root.getPluginData('pluginVersion') === '') {
 async function tableMessageHandlerV3(msg) {
   {
     if (msg.type === 'create-components') {
-      if (figma.root.getPluginData('ComponentPageCreated') === 'true') return;
+      if (
+        figma.root.getPluginData('ComponentPageCreated') === 'true' &&
+        findComponentById(figma.root.getPluginData('cellComponentID'))
+      )
+        return;
       createDefaultComponents();
       figma.root.setRelaunchData({ createTable: 'Create a new table' });
 
@@ -837,17 +891,20 @@ async function tableMessageHandlerV3(msg) {
 
     if (msg.type === 'replace-values') {
       computeTableValues();
-      // MOVE OUT
-      console.log('yo');
+
       nodesToUpdate = [];
       traverse(figma.root);
 
+      // hack it up
       await figma.loadFontAsync({ family: 'Roboto', style: 'Regular' });
-      console.log(nodesToUpdate);
-      console.log(TABLE);
+
+      // This updates all single cell references
       nodesToUpdate.forEach(node => {
-        let tableIndexers = node.name.match(/{{{.*}}}/g)[0];
-        tableIndexers = tableIndexers.replace('{{{', '').replace('}}}', '');
+        let tableIndexers = node.name.match(/{{{[A-Z]:[.*]}}}/g);
+        if (!tableIndexers || tableIndexers.length !== 1) {
+          return;
+        }
+        tableIndexers = tableIndexers[0].replace('{{{', '').replace('}}}', '');
         const [colIndex, rowIndex] = tableIndexers.split(':');
 
         let tableValue = '';
@@ -864,6 +921,9 @@ async function tableMessageHandlerV3(msg) {
           }
         });
       });
+
+      updateDynamicNodes(nodesToUpdate);
+
       nodesToUpdate = [];
       figma.closePlugin();
     }
