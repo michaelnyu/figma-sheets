@@ -841,7 +841,6 @@ function populateAggregators() {
   for (const node of nodesToUpdate) {
     console.log(node.name);
     const agg = AGGREGATORS.find(aggregator => node.name.includes(aggregator));
-    console.log(agg);
     if (!agg) continue;
     let blah = node.name.match(/{{{(.*?)}}}/g);
     if (!blah) continue;
@@ -972,7 +971,29 @@ async function tableMessageHandlerV3(msg) {
       traverse(figma.root);
 
       // hack it up
-      await figma.loadFontAsync({ family: 'Roboto', style: 'Regular' });
+      // await loadFonts(nodesToUpdate)
+      const fontsToLoad = nodesToUpdate.reduce((fonts, node) => {
+        if (
+          node.type === 'TEXT' &&
+          'family' in node.fontName &&
+          'style' in node.fontName &&
+          fonts.every(font => {
+            if (
+              font.family !== node.fontName.family ||
+              font.style !== node.fontName.style
+            )
+              return true;
+            return false;
+          })
+        ) {
+          fonts = fonts.concat([node.fontName]);
+        }
+        return fonts;
+      }, []);
+
+      for (let i = fontsToLoad.length - 1; i >= 0; --i) {
+        await figma.loadFontAsync(fontsToLoad[i]);
+      }
 
       // This updates all single cell references
       nodesToUpdate.forEach(node => {
