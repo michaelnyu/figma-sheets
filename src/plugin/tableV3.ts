@@ -698,6 +698,65 @@ function getNestedNode(root, type) {
   return;
 }
 
+function evalExpression(a, b, operator) {
+  switch (operator) {
+    case '+':
+      if (!isNaN(parseInt(a, 10)) && !isNaN(parseInt(b, 10))) {
+        console.log(parseInt(a, 10), b);
+        return parseInt(a) + parseInt(b);
+      }
+      return a + b;
+    default:
+      return a;
+  }
+}
+
+function applyTransformer(transformer, colIdx) {
+  const transformerTokens = transformer[0].trim().split(' ');
+  for (const row of Object.keys(TABLE).splice(1)) {
+    const basisCol = transformerTokens[0];
+    let basisValue = '';
+    if (basisCol in HEADER_NAMES) {
+      basisValue = TABLE[row][HEADER_NAMES[basisCol]];
+    } else {
+      basisValue = TABLE[row][basisCol];
+    }
+    if (basisValue !== '') {
+      const operator = transformerTokens[1];
+      const operand = transformerTokens[2];
+      TABLE[row][colIdx] = evalExpression(basisValue, operand, operator);
+    }
+  }
+}
+
+const columnsToUpdate = [];
+function collectColumnsToUpdate(colIdx) {
+  const tables = figma.root.children[0].findAll(
+    node => node.getPluginData('isTable') === 'true',
+  );
+  const table = tables[0];
+  if (table.type !== 'INSTANCE') {
+    for (let x = 1; x < table.children.length; x++) {
+      const colNumber = colIdx.charCodeAt(0) - 'A'.charCodeAt(0);
+      const cell = table.children[x].children[colNumber];
+      const text = getNestedNode(cell, 'TEXT');
+      columnsToUpdate.push({ text, row: x, col: colIdx });
+    }
+  }
+}
+
+function parseHeaderName(name, colIdx) {
+  const tokens = name.split('=');
+  HEADER_NAMES[tokens[0].trim()] = colIdx;
+
+  if (tokens.length > 1) {
+    const transformer = tokens.splice(1);
+    applyTransformer(transformer, colIdx);
+    collectColumnsToUpdate(colIdx);
+  }
+  return tokens;
+}
+
 function computeTableValues() {
   var pages = figma.root.children;
   var tables;
@@ -714,8 +773,9 @@ function computeTableValues() {
 
   // Don't apply if an instance
   if (table.type !== 'INSTANCE') {
-    for (let x = 0; x < table.children.length; x++) {
-      var row = table.children[x];
+    // Skip header at first
+    for (let x = 1; x < table.children.length; x++) {
+      let row = table.children[x];
       TABLE[x] = {};
       if (row.children && row.getPluginData('isRow') === 'true') {
         for (let k = 0; k < row.children.length; k++) {
@@ -723,13 +783,20 @@ function computeTableValues() {
           const letter = String.fromCharCode('A'.charCodeAt(0) + k);
           const text = getNestedNode(cell, 'TEXT').characters;
           TABLE[x][letter] = text;
-          if (
-            cell.getPluginData('isCellHeader') === 'true' &&
-            text.trim() !== ''
-          ) {
-            HEADER_NAMES[text] = letter;
-          }
         }
+      }
+    }
+
+    // Parse headers after table is parsed
+    TABLE[0] = {};
+    let row = table.children[0];
+    for (let k = 0; k < row.children.length; k++) {
+      var cell = row.children[k];
+      const letter = String.fromCharCode('A'.charCodeAt(0) + k);
+      const text = getNestedNode(cell, 'TEXT').characters;
+      TABLE[0][letter] = text;
+      if (text.trim() !== '') {
+        parseHeaderName(text, letter);
       }
     }
   }
@@ -997,7 +1064,7 @@ async function tableMessageHandlerV3(msg) {
 
       // This updates all single cell references
       nodesToUpdate.forEach(node => {
-        let tableIndexers = node.name.match(/{{{[A-Z]+:[0-9]+}}}/g);
+        let tableIndexers = node.name.match(/{{{(.*?):[0-9]+}}}/g);
         if (!tableIndexers || tableIndexers.length !== 1) {
           return;
         }
@@ -1015,6 +1082,11 @@ async function tableMessageHandlerV3(msg) {
         if (node.type === 'TEXT') {
           node.characters = newText;
         }
+      });
+
+      // Update transformed columns
+      columnsToUpdate.forEach(({ text, row, col }) => {
+        text.characters = TABLE[row][col].toString();
       });
 
       updateDynamicNodes(nodesToUpdate);
