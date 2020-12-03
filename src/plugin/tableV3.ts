@@ -666,10 +666,16 @@ function positionInCenter(node) {
 }
 
 let nodesToUpdate = [];
+let nodesOfAggregators = [];
 function traverse(node) {
+  if (!node || !node.name) return;
   if (node.name.match(/{{{(.*?)}}}/g)) {
     nodesToUpdate.push(node);
   }
+  // if (node.type === 'TEXT') {
+  //   const agg = AGGREGATORS.find((aggregator) => node.name.startsWith(aggregator))
+  //   if (agg) nodesOfAggregators.push(node)
+  // }
   if ('children' in node) {
     if (node.type !== 'INSTANCE') {
       for (const child of node.children) {
@@ -678,6 +684,7 @@ function traverse(node) {
     }
   }
 }
+
 // traverse(figma.root) // start the traversal at the root
 
 function getNestedNode(root, type) {
@@ -716,7 +723,10 @@ function computeTableValues() {
           const letter = String.fromCharCode('A'.charCodeAt(0) + k);
           const text = getNestedNode(cell, 'TEXT').characters;
           TABLE[x][letter] = text;
-          if (cell.getPluginData('isCellHeader') === 'true') {
+          if (
+            cell.getPluginData('isCellHeader') === 'true' &&
+            text.trim() !== ''
+          ) {
             HEADER_NAMES[text] = letter;
           }
         }
@@ -796,11 +806,12 @@ function updateDynamicNodes(nodes) {
       }
 
       for (const child of nextChildInstance.children) {
-        let colIndex = child.name.match(/{{{[A-Z]}}}/g);
+        if (child.name.includes(':')) {
+          return;
+        }
+        let colIndex = child.name.match(/{{{(.*?)}}}/g);
         if (!colIndex) return;
         colIndex = colIndex[0].replace('{{{', '').replace('}}}', '');
-        console.log(TABLE[rowIndex][colIndex]);
-        console.log({ colIndex, rowIndex });
         let tableValue = '';
         if (colIndex in HEADER_NAMES) {
           tableValue = TABLE[rowIndex][HEADER_NAMES[colIndex]];
@@ -814,6 +825,73 @@ function updateDynamicNodes(nodes) {
       }
     }
   });
+}
+
+function getCellFromRow(row, colIndex) {
+  if (colIndex in HEADER_NAMES) {
+    return row[HEADER_NAMES[colIndex]];
+  } else {
+    return row[colIndex];
+  }
+}
+
+const AGGREGATORS = ['COUNT', 'SUM', 'MAX'];
+
+function populateAggregators() {
+  for (const node of nodesToUpdate) {
+    console.log(node.name);
+    const agg = AGGREGATORS.find(aggregator => node.name.includes(aggregator));
+    console.log(agg);
+    if (!agg) continue;
+    let blah = node.name.match(/{{{(.*?)}}}/g);
+    if (!blah) continue;
+    let column = blah[0].replace(agg, '').replace('{{{', '').replace('}}}', '');
+    column = column.substring(1, column.length - 1);
+    if (!agg || !column) continue;
+
+    let val;
+    switch (agg) {
+      case 'COUNT':
+        let count = 0;
+        Object.values(TABLE)
+          .splice(1)
+          .forEach(row => {
+            if (getCellFromRow(row, column) !== '') count += 1;
+          });
+        val = count;
+        break;
+      case 'SUM':
+        let sum = 0;
+        Object.values(TABLE)
+          .splice(1)
+          .forEach(row => {
+            console.log({ column });
+            const cellString = getCellFromRow(row, column);
+            if (cellString !== '') {
+              sum += parseInt(cellString);
+            }
+          });
+        val = sum;
+        break;
+      case 'MAX':
+        let max = 0;
+        Object.values(TABLE)
+          .splice(1)
+          .forEach(row => {
+            const cellString = getCellFromRow(row, column);
+            if (cellString !== '') {
+              max = Math.max(max, parseInt(cellString));
+            }
+          });
+        val = max;
+        break;
+      default:
+        break;
+    }
+
+    let aggVal = val;
+    node.characters = node.name.replace(/{{{.*}}}/g, aggVal);
+  }
 }
 
 var message = {
@@ -919,6 +997,8 @@ async function tableMessageHandlerV3(msg) {
       });
 
       updateDynamicNodes(nodesToUpdate);
+
+      populateAggregators();
 
       nodesToUpdate = [];
       figma.closePlugin();
