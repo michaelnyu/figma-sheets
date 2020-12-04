@@ -666,23 +666,31 @@ function positionInCenter(node) {
 }
 
 let nodesToUpdate = [];
+let dynamicNodesToUpdate = [];
 let nodesOfAggregators = [];
 function traverse(node) {
   if (!node || !node.name) return;
+
   if (node.name.match(/{{{(.*?)}}}/g)) {
-    nodesToUpdate.push(node);
+    if (node.name.match(/{{{[0-9]+-[0-9]+}}}/g)) {
+      dynamicNodesToUpdate.push(node);
+    } else if (AGGREGATORS.some(agg => node.name.includes(agg))) {
+      nodesOfAggregators.push(node);
+    } else {
+      nodesToUpdate.push(node);
+    }
   }
   // if (node.type === 'TEXT') {
   //   const agg = AGGREGATORS.find((aggregator) => node.name.startsWith(aggregator))
   //   if (agg) nodesOfAggregators.push(node)
   // }
   if ('children' in node) {
-    if (node.type !== 'INSTANCE') {
-      for (const child of node.children) {
-        traverse(child);
-      }
+    // if (node.type !== 'INSTANCE') {
+    for (const child of node.children) {
+      traverse(child);
     }
   }
+  // }
 }
 
 // traverse(figma.root) // start the traversal at the root
@@ -696,6 +704,20 @@ function getNestedNode(root, type) {
     }
   }
   return;
+}
+
+function flattenAllChildren(root, type) {
+  if (!root) return [];
+  if (root.type === type) return [root];
+  if ('children' in root) {
+    let textChildren = [];
+    for (const child of root.children) {
+      const nestedNodes = flattenAllChildren(child, type);
+      textChildren = textChildren.concat(nestedNodes);
+    }
+    return textChildren;
+  }
+  return [];
 }
 
 function evalExpression(a, b, operator) {
@@ -843,21 +865,24 @@ function deleteSelection() {
 
 function updateDynamicNodes(nodes) {
   nodes.forEach(node => {
+    console.log('name', node.name);
     let tableIndexers = node.name.match(/{{{[0-9]+-[0-9]+}}}/g);
     if (!tableIndexers || tableIndexers.length !== 1) return;
+
     tableIndexers = tableIndexers[0].replace('{{{', '').replace('}}}', '');
     const [startRow, endRow] = tableIndexers.split('-');
 
     // fetch the component we want to duplicate
-    const childComponent = node.children.find(
-      child => child.type === 'COMPONENT',
-    );
+    if (node.children.length === 0) return;
+    const childComponent = node.children[0];
 
     // clear out all stale component instances
-    node.children.forEach(child => {
-      if (child.type === 'INSTANCE' && child.mainComponent == childComponent)
-        child.remove();
+    const blah = node.children.slice(1);
+    blah.forEach(child => {
+      console.log('name getting removed', node.name);
+      child.remove();
     });
+    // return;
 
     // duplicate the component and fill in data from the table
     for (
@@ -868,12 +893,17 @@ function updateDynamicNodes(nodes) {
       let nextChildInstance;
       if (rowIndex === parseInt(startRow)) nextChildInstance = childComponent;
       else {
-        nextChildInstance = childComponent.createInstance();
+        nextChildInstance = childComponent.clone();
         node.appendChild(nextChildInstance);
       }
 
-      for (const child of nextChildInstance.children) {
-        if (child.name.includes(':')) {
+      const textChildren = flattenAllChildren(nextChildInstance, 'TEXT');
+      console.log(
+        'doing stuff to',
+        textChildren.map(child => child.name),
+      );
+      for (const child of textChildren) {
+        if (!child || child.name.includes(':')) {
           return;
         }
         let colIndex = child.name.match(/{{{(.*?)}}}/g);
@@ -886,6 +916,7 @@ function updateDynamicNodes(nodes) {
           tableValue = TABLE[rowIndex][colIndex];
         }
         const newText = node.name.replace(/{{{.*}}}/g, tableValue);
+        console.log('newText', newText);
         if (child.type === 'TEXT') {
           child.characters = newText;
         }
@@ -904,9 +935,9 @@ function getCellFromRow(row, colIndex) {
 
 const AGGREGATORS = ['COUNT', 'SUM', 'MAX'];
 
-function populateAggregators() {
+function populateAggregators(nodesToUpdate) {
   for (const node of nodesToUpdate) {
-    console.log(node.name);
+    if (!node || !node.name) continue;
     const agg = AGGREGATORS.find(aggregator => node.name.includes(aggregator));
     if (!agg) continue;
     let blah = node.name.match(/{{{(.*?)}}}/g);
@@ -1089,9 +1120,9 @@ async function tableMessageHandlerV3(msg) {
         text.characters = TABLE[row][col].toString();
       });
 
-      updateDynamicNodes(nodesToUpdate);
+      updateDynamicNodes(dynamicNodesToUpdate);
 
-      populateAggregators();
+      populateAggregators(nodesOfAggregators);
 
       nodesToUpdate = [];
       figma.closePlugin();
